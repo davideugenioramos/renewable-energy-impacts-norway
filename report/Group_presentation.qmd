@@ -1,0 +1,817 @@
+---
+title: "Renewable energy impacts in Norway"
+author: "James Kiley, Akil Mohamed Firos, David Eugenio Ramos, Katie Willey, Emmanuel Agyei"
+format: 
+  revealjs:
+    theme: sky
+    transition: fade
+    smaller: true
+editor: visual
+---
+
+```{r libraries, include=FALSE}
+library(tidyverse)
+library(scales)
+library(here)
+library(tidytext)
+library(wordcloud2)
+library(dplyr)
+library(stringr)
+library(ggplot2)
+library(viridis)
+library(patchwork)
+library(broom)
+library(gt)
+```
+
+```{r}
+#Load in raw data
+renewables_raw <- read_csv(here("Data", "raw", "modern-renewable-energy-consumption.csv"))
+co2_raw <- read_csv(here("Data", "raw", "annual-co2-emissions-per-country.csv"))
+```
+
+```{r observing data set, include=FALSE}
+#Initial inspections
+#co2_raw
+glimpse(co2_raw)
+summary(co2_raw)
+head(co2_raw)
+str(co2_raw)
+```
+
+```{r observing data set 2, include=FALSE}
+#renewables_raw
+glimpse(renewables_raw)
+summary(renewables_raw)
+head(renewables_raw)
+str(renewables_raw)
+```
+
+```{r}
+#Initial thoughts
+
+#The initial inspections of renewables_raw tells us that this is a large data frame 6405 rows by 7 columns. It contains a list of all the countries in the world and the amount of terawatt-hours (TWh) each renewable energy source (Solar, Wind, Hydro and other renewables) produces. there is is a mix of character and numeric vector types for example "Entity" is character, "Year" is numeric and solar "generation" is numeric. It is clear from the initial inspections that we will not need a lot of this data, for example, we will be focusing on Norway as our assigned country and will compare Norway to other European countries which means our first steps such be to remove all the countries outside of Europe.
+
+#Initial thoughts- complete for co2_raw
+
+#The raw data is too large with entries of about 29300 (approx). A lot of cleaning will be needed starting of with the countries. Luckily since there are only 4 columns Entity, Code, Year and Annual CO2 emissions. With Entity being chr , Code being chr, Year being num, and Annual CO2 emissions being num. but since we are only focusing for Europe only many other countries are not needed and years of observation for this coursework will be for 3 decades min, so can cut down many over there as well. Also the column Code does not help with data right now so that can column can also be removed.
+```
+
+```{r cleaning data, include=FALSE}
+#Cleaned data for renewables
+renewables_processed <- renewables_raw %>% 
+  filter(Entity %in% c("Albania", 
+                       "Armenia",
+                       "Austria",
+                       "Azerbaijan",
+                       "Belarus",
+                       "Belgium",
+                        "Bosnia and Herzegovina",
+                       "Bulgaria",
+                       "Croatia",
+                       "Cyprus",
+                       "Czechia",
+                       "Denmark",
+                       "Estonia",
+                       "Finland",
+                       "France",
+                       "Germany",
+                       "Greece",
+                       "Hungary",
+                       "Iceland",
+                       "Ireland",
+                       "Italy",
+                       "Latvia",
+                       "Lithuania",
+                       "Luxembourg",
+                       "Netherlands",
+                       "North Macedonia",
+                       "Norway",
+                        "Poland",
+                       "Portugal",
+                       "Romania",
+                       "Slovakia",
+                       "Slovenia",
+                        "Spain",
+                       "Sweden",
+                       "Switzerland",
+                       "United Kingdom", 
+                       "Europe")) %>%
+  filter(Year >= 1990) %>% 
+  select(-Code) %>% 
+  rename(Location = Entity, 
+         Other = 'Other renewables (including geothermal and biomass) electricity generation - TWh',
+         Solar_TWh = `Solar generation - TWh`,
+         Wind_TWh = `Wind generation - TWh`,
+         Hydro_TWH = `Hydro generation - TWh`) %>% 
+  drop_na() %>% group_by(Location, Year) %>%  
+  mutate(total_renewables = 
+           rowSums(across(c(Hydro_TWH,
+                            Solar_TWh,
+                            Wind_TWh,
+                            Other))))
+
+```
+
+```{r cleaning data 2, include=FALSE}
+#Cleaning data for the co2 emmisions
+
+co2_processed <- co2_raw |>
+  filter(Entity %in% c(
+                       "Albania", 
+                       "Armenia",
+                       "Austria",
+                       "Azerbaijan",
+                       "Belarus",
+                       "Belgium",
+                        "Bosnia and Herzegovina",
+                       "Bulgaria",
+                       "Croatia",
+                       "Cyprus",
+                       "Czechia",
+                       "Denmark",
+                       "Estonia",
+                       "Finland",
+                       "France",
+                       "Germany",
+                       "Greece",
+                       "Hungary",
+                       "Iceland",
+                       "Ireland",
+                       "Italy",
+                       "Latvia",
+                       "Lithuania",
+                       "Luxembourg",
+                       "Netherlands",
+                       "North Macedonia",
+                       "Norway",
+                        "Poland",
+                       "Portugal",
+                       "Romania",
+                       "Slovakia",
+                       "Slovenia",
+                        "Spain",
+                       "Sweden",
+                       "Switzerland",
+                       "United Kingdom", 
+                       "Europe"
+                       )) |>
+  filter(Year >= 1990) |>
+  select(-Code) |> 
+    rename(Location = Entity) |>
+  drop_na()
+```
+
+## Questions
+
+**Given Norway's strong renewable energy sector are they a leader in renewable energy production compared to the rest of Europe?**
+
+**To what extent does Norway's increase in renewable electricity generation correlate with changes in its carbon emissions over the past 30 years?**
+
+### Data
+
+The data sets chosen; annual-co2-emissions-per-country and modern-renewable-energy-consumption are relevant for our questions as they contain data on co2 emmisions and renewable electricity generation (TWh) per country from the mid 1900's to 2025. We have chosen to only include the years 1990-2025 because this reflects the change in energy transitions whilst still allowing us to have enough years to identify trends. Additionally, Norway was compared to only European countries in order to achieve comparisons amongst familiar regions which share similar policies and to avoid complexity in visualising the data which could distort graphs.
+
+```{r}
+plot1_df <- renewables_processed |>
+  group_by(Location) |>
+  filter(Year == max(Year)) |>
+  ungroup() |>
+  filter(Location != "Europe") |>
+  arrange(total_renewables)
+ggplot(plot1_df,
+       aes(x = total_renewables,
+           y = factor(Location, levels = Location),
+           fill = Location == "Norway")) +
+  geom_col() +
+  geom_text(aes(label = Location),
+            hjust = -0.1, size = 3.5) +
+  expand_limits(x = max(plot1_df$total_renewables) * 1.15) +
+  scale_fill_viridis(discrete = TRUE, option = "D",
+                     labels = c("Other countries", "Norway")) +
+  labs(
+    title = "Renewable Electricity Generation 
+    in Europe (Latest Year)",
+    x = "Renewables (TWh)",
+    y = "",
+    fill = ""
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 18),
+    plot.subtitle = element_text(hjust = 0.5, size = 14),
+    axis.text.y = element_blank(),    
+    axis.title.y = element_blank(),
+    legend.position = "bottom",
+    plot.margin = margin(20, 40, 20, 20), 
+    plot.background = element_rect(colour = 
+                                     "black", 
+                                   fill=NA, 
+                                   linewidth = 3))
+
+```
+
+## 
+
+```{r}
+countries_major <- c(
+  "Norway", "Germany", "France", "Spain", "Italy",
+  "Sweden", "Finland", "United Kingdom", "Poland",
+  "Portugal", "Netherlands"
+)
+plot2_df <- renewables_processed |>
+  filter(Location %in% countries_major) |>
+  group_by(Location) |>
+  filter(Year == max(Year)) |>
+  ungroup() |>
+  arrange(total_renewables)
+ggplot(plot2_df,
+       aes(x = total_renewables,
+           y = factor(Location, levels = Location),
+           fill = Location == "Norway")) +
+  geom_col() +
+  scale_fill_viridis(discrete = TRUE, option = "D",
+                     labels = c("Other countries", "Norway")) +
+  labs(
+    title = "Norway vs Major European 
+    Renewable Electricity Producers (2025)",
+    x = "Renewables (TWh)",
+    y = "Country",
+    fill = ""
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title    = element_text(hjust = 0.5, face = "bold", size = 18),
+    plot.subtitle = element_text(hjust = 0.5, size = 14),
+    axis.text.y   = element_text(size = 12),
+    legend.position = "bottom",
+    plot.margin   = margin(20, 30, 20, 30),
+    plot.background = element_rect(colour = 
+                                     "black", 
+                                   fill=NA, 
+                                   linewidth = 3))
+```
+
+## 
+
+*Norways renewable energy is predominantly produced by hydroelectricity*
+
+```{r}
+Norways_Renew_by_Source_plot <- renewables_raw |>
+  filter(Entity == "Norway") |>
+  filter(Year == max(Year)) |>
+  select(
+    Hydro = `Hydro generation - TWh`,
+    Wind = `Wind generation - TWh`,
+    Solar = `Solar generation - TWh`,
+    Other = `Other renewables (including geothermal and biomass) electricity generation - TWh`
+  ) |>
+  pivot_longer(cols = everything(),
+               names_to = "Source",
+               values_to = "TWh") |>
+  ggplot(aes(x = Source, y = TWh, fill = Source)) +
+  geom_col() +
+  scale_fill_viridis(discrete = TRUE, option = "D") +
+  labs(
+    title = "Norway’s Renewable Electricity 
+    Generation by Source (2025)",
+    x = "Energy Source",
+    y = "Generation (TWh)"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    plot.subtitle = element_text(hjust = 0.5),
+    plot.background = element_rect(colour = 
+                                     "black", 
+                                   fill=NA, 
+                                   linewidth = 3))
+Norways_Renew_by_Source_plot
+```
+
+## 
+
+*Linear trend in Norway’s renewable electricity generation*
+
+```{r}
+Linear_model_1 <- renewables_processed |>
+  filter(Location == "Norway") |>
+  ggplot(aes(x = Year, y = total_renewables)) +
+  geom_point(color = viridis(1, option = "C"), size = 2) +
+  geom_smooth(method = "lm", se = TRUE,
+              color = viridis(1, option = "D"),
+              linewidth = 1.2) +
+  labs(
+    title = "Trend in Norway’s Renewable Electricity Generation",
+    subtitle = "Linear regression shows long-term growth (1990–2025)",
+    x = "Year",
+    y = "Total Renewable Electricity (TWh)"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    plot.subtitle = element_text(hjust = 0.5),
+    plot.margin = margin(20, 20, 20, 20), 
+    plot.background = element_rect(colour = 
+                                     "black", 
+                                   fill=NA, 
+                                   linewidth = 3))
+
+Linear_model_1
+```
+
+```{r, include=FALSE}
+
+#**Hydro electricity production**
+#Code and graphs not to be included in presentation"
+compare_df <- renewables_processed |>
+  filter(Year == max(Year)) |>
+  filter(Location != "Europe") |>
+  select(Location, Hydro_TWH, Solar_TWh, Wind_TWh, Other)
+```
+
+```{r, include=FALSE}
+Hydro_comparison_plot <- compare_df |>
+  arrange(desc(Hydro_TWH)) |>
+  slice(1:10) |>
+  mutate(
+    highlight = ifelse(Location == "Norway", "Norway", "Other countries")
+  ) |>
+  ggplot(aes(
+    x = reorder(Location, Hydro_TWH),
+    y = Hydro_TWH,
+    fill = highlight
+  )) +
+  geom_col() +
+  coord_flip() +
+  scale_fill_manual(
+    values = c(
+      "Norway" = "#FDE725",
+      "Other countries" = "#440154"
+    )
+  ) +
+  labs(
+    title = "Hydro Electricity Generation",
+    x = "Country",
+    y = "Hydro (TWh)",
+    fill = ""
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title      = element_text(hjust = 0.5, face = "bold"),
+    plot.subtitle   = element_text(hjust = 0.5),
+    axis.text.y     = element_text(size = 12),
+    plot.background = element_rect(colour = "black",
+                                   fill=NA, 
+                                   linewidth = 3),
+    legend.position = "bottom")
+
+Hydro_comparison_plot
+```
+
+```{r, include=FALSE}
+#**Wind electricity production**
+#Code and graphs not to be included in presentation
+Wind_comparison_plot <- compare_df |>
+  arrange(desc(Wind_TWh)) |>
+  slice(1:10) |>
+  mutate(
+    highlight = ifelse(Location == "Norway", "Norway", "Other countries")
+  ) |>
+  ggplot(aes(
+    x = reorder(Location, Wind_TWh),
+    y = Wind_TWh,
+    fill = highlight
+  )) +
+  geom_col() +
+  coord_flip() +
+  scale_fill_manual(
+    values = c(
+      "Norway" = "#FDE725",
+      "Other countries" = "#440154"
+    )
+  ) +
+  labs(
+    title = "Wind Electricity Generation (Top 10 in Europe)",
+    subtitle = "Norway’s wind production is modest compared to European leaders",
+    x = "Country",
+    y = "Wind (TWh)",
+    fill = ""
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title      = element_text(hjust = 0.5, face = "bold"),
+    plot.subtitle   = element_text(hjust = 0.5),
+    axis.text.y     = element_text(size = 12),
+    legend.position = "bottom"
+  )
+
+Wind_comparison_plot
+```
+
+```{r, include=FALSE}
+#**Solar electricity production**
+#Code and graphs not to be included in presentation
+Solar_comparison_plot <- compare_df |>
+  arrange(desc(Solar_TWh)) |>
+  slice(1:10) |>
+  mutate(
+    highlight = ifelse(Location == "Norway", "Norway", "Other countries")
+  ) |>
+  ggplot(aes(
+    x = reorder(Location, Solar_TWh),
+    y = Solar_TWh,
+    fill = highlight
+  )) +
+  geom_col() +
+  coord_flip() +
+  scale_fill_manual(
+    values = c(
+      "Norway" = "#FDE725",
+      "Other countries" = "#440154"
+    )
+  ) +
+  labs(
+    title = "Solar Electricity Generation (Top 10 in Europe)",
+    subtitle = "Norway produces very little solar electricity compared to European leaders",
+    x = "Country",
+    y = "Solar (TWh)",
+    fill = ""
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title      = element_text(hjust = 0.5, face = "bold"),
+    plot.subtitle   = element_text(hjust = 0.5),
+    axis.text.y     = element_text(size = 12),
+    legend.position = "bottom"
+  )
+
+Solar_comparison_plot
+```
+
+```{r, include=FALSE}
+#**Biomass and Geothermal renewable sources**
+#Code and graphs not to be included in presentation
+Bio_and_Geo_comparison_plot <- compare_df |>
+  arrange(desc(Other)) |>
+  slice(1:10) |>
+  mutate(
+    highlight = ifelse(Location == "Norway", "Norway", "Other countries")
+  ) |>
+  ggplot(aes(
+    x = reorder(Location, Other),
+    y = Other,
+    fill = highlight
+  )) +
+  geom_col() +
+  coord_flip() +
+  scale_fill_manual(
+    values = c(
+      "Norway" = "#FDE725",
+      "Other countries" = "#440154"
+    )
+  ) +
+  labs(
+    title = "Other Renewable Energy (Biomass + Geothermal) – Top 10 in Europe",
+    subtitle = "Norway’s production is modest compared to European leaders",
+    x = "Country",
+    y = "Other Renewables (TWh)",
+    fill = ""
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title    = element_text(hjust = 0.5, face = "bold"),
+    plot.subtitle = element_text(hjust = 0.5),
+    axis.text.y   = element_text(size = 12),
+    legend.position = "bottom"
+  )
+
+Bio_and_Geo_comparison_plot
+```
+
+```{r, include=FALSE}
+#Prep for comparison plot
+#Code and graphs not to be included in presentation
+Hydro_Processed_comparison_plot <- compare_df |>
+  arrange(desc(Hydro_TWH)) |>
+  slice(1:10) |>
+  mutate(
+    highlight = ifelse(Location == "Norway", "Norway", "Other countries")
+  ) |>
+  ggplot(aes(
+    x = reorder(Location, Hydro_TWH),
+    y = Hydro_TWH,
+    fill = highlight
+  )) +
+  geom_col() +
+  coord_flip() +
+  scale_fill_manual(
+    values = c(
+      "Norway" = "#FDE725",
+      "Other countries" = "#440154"
+    )
+  ) +
+  labs(
+    title = "Hydro Electricity Generation",
+    x = "",
+    y = "Hydro (TWh)",
+    fill = ""
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title      = element_text(hjust = 0.5, size = 12, face = "bold"),
+    plot.subtitle   = element_text(hjust = 0.5),
+    axis.text.y     = element_text(size = 12),
+    legend.position = "bottom")
+
+Hydro_Processed_comparison_plot
+
+Wind_Processed_comparison_plot <- compare_df |>
+  arrange(desc(Wind_TWh)) |>
+  slice(1:10) |>
+  mutate(
+    highlight = ifelse(Location == "Norway", "Norway", "Other countries")
+  ) |>
+  ggplot(aes(
+    x = reorder(Location, Wind_TWh),
+    y = Wind_TWh,
+    fill = highlight
+  )) +
+  geom_col() +
+  coord_flip() +
+  scale_fill_manual(
+    values = c(
+      "Norway" = "#FDE725",
+      "Other countries" = "#440154"
+    )
+  ) +
+  labs(
+    title = "Wind Electricity Generation",
+    x = "",
+    y = "Wind (TWh)",
+    fill = ""
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title      = element_text(hjust = 0.5,
+                                   size = 12,
+                                   face = "bold"),
+    plot.subtitle   = element_text(hjust = 0.5),
+    axis.text.y     = element_text(size = 12),
+    legend.position = "bottom")
+
+Wind_Processed_comparison_plot
+
+Solar_Processed_comparison_plot <- compare_df |>
+  arrange(desc(Solar_TWh)) |>
+  slice(1:10) |>
+  mutate(
+    highlight = ifelse(Location == "Norway", 
+                       "Norway", 
+                       "Other countries")) |>
+  ggplot(aes(
+    x = reorder(Location, Solar_TWh),
+    y = Solar_TWh,
+    fill = highlight
+  )) +
+  geom_col() +
+  coord_flip() +
+  scale_fill_manual(
+    values = c(
+      "Norway" = "#FDE725",
+      "Other countries" = "#440154"
+    )
+  ) +
+  labs(
+    title = "Solar Electricity Generation",
+    x = "",
+    y = "Solar (TWh)",
+    fill = ""
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title      = element_text(hjust = 0.5, size = 12, face = "bold"),
+    plot.subtitle   = element_text(hjust = 0.5),
+    axis.text.y     = element_text(size = 12),
+    legend.position = "bottom")
+
+Solar_Processed_comparison_plot
+
+Bio_Geo_processed_plot <- compare_df |>
+  arrange(desc(Other)) |>
+  slice(1:10) |>
+  mutate(
+    highlight = ifelse(Location == "Norway", "Norway", "Other countries")
+  ) |>
+  ggplot(aes(
+    x = reorder(Location, Other),
+    y = Other,
+    fill = highlight
+  )) +
+  geom_col() +
+  coord_flip() +
+  scale_fill_manual(
+    values = c(
+      "Norway" = "#FDE725",
+      "Other countries" = "#440154"
+    )
+  ) +
+  labs(
+    title = "Biomass + Geothermal",
+    x = "",
+    y = "Other Renewables (TWh)",
+    fill = ""
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title    = element_text(hjust = 0.25, size = 12, face = "bold"),
+    plot.subtitle = element_text(hjust = 0.5),
+    axis.text.y   = element_text(size = 12),
+    legend.position = "bottom")
+
+Bio_Geo_processed_plot
+```
+
+## 
+
+*Renewable comparison- Norway vs Europe*
+
+```{r}
+#| layout-ncol: 2
+#| fig-width: 8
+#| fig-height: 5
+Hydro_vs_Wind_Comparison <- (Hydro_Processed_comparison_plot + Wind_Processed_comparison_plot) +
+  plot_layout(guides = "collect") +
+  plot_annotation(title = "Norway vs Europe Renewable Electricity Comparison (1990-2025)",
+                  theme = theme(plot.title = element_text(size = 18, face = "bold", hjust = 0.5)) + theme(plot.background = element_rect(colour = 
+                                     "black", 
+                                   fill=NA, 
+                                   linewidth = 3),
+                                   legend.position = "bottom"))
+
+Hydro_vs_Wind_Comparison
+
+Solar_vs_BioGeo_Comparison <- (Solar_Processed_comparison_plot + Bio_Geo_processed_plot) +
+  plot_layout(guides = "collect") +
+  plot_annotation(title = "Norway vs Europe Renewable Electricity Comparison (1990-2025)",
+                  theme = theme(plot.title = element_text(size = 18, face = "bold", hjust = 0.5)) + theme(plot.background = element_rect(colour = 
+                                     "black", 
+                                   fill=NA, 
+                                   linewidth = 3),
+                                   legend.position = "bottom"))
+
+Solar_vs_BioGeo_Comparison
+```
+
+## 
+
+```{r, include=FALSE}
+#Statistics/linear model numerical data for carbon emissions
+
+Norway_renew_forLM <- renewables_processed |>
+  filter(Location == "Norway")
+
+Norway_C02_forLM <- co2_processed |> 
+  filter(Location == "Norway")
+
+Norway_combined_forLM <- Norway_renew_forLM |> 
+  left_join(Norway_C02_forLM, by = "Year")
+
+linear_model <- lm(`Annual CO₂ emissions` / 1e6 ~ total_renewables, data = Norway_combined_forLM)
+
+summary(linear_model)
+
+```
+
+*Linear Model- Relationship between CO2 and Renewable in Norway*
+
+```{r}
+
+Tidiedlm <-
+  tidy(linear_model) |> mutate(term = recode(term,
+                       "(Intercept)" = "Intercept",
+              "total_renewables" = "Renewables (TWh)")) |> 
+  gt() |> 
+  tab_header(title = "Linear Model: CO2 vs Renewables") |> 
+  opt_table_font(size = 30)
+
+Tidiedlm
+```
+
+## 
+
+*To what extent does Norway's increase in renewable electricity generation correlate with changes in its carbon emissions over the past 30 years?*
+
+```{r}
+norway_combined <- renewables_processed %>%
+  filter(Location == "Norway") %>%
+  select(Location, Year, total_renewables) %>%
+  left_join(
+    co2_processed %>% 
+      filter(Location == "Norway") %>% 
+      select(Location, Year, `Annual CO₂ emissions`),
+    by = c("Location", "Year") )
+
+ggplot(norway_combined, aes(x = Year)) + 
+  geom_line(aes(y = total_renewables, 
+                colour = "Renewables (TWh)"), 
+            size = 1.3) +
+  geom_line(aes(y = `Annual CO₂ emissions` / 1e6, 
+                colour = "CO₂ Emissions (million tonnes)"),
+            size = 1.3) +
+  scale_y_continuous(name = "Renewable Electricity (TWh)",
+    breaks = seq(0, max(norway_combined$total_renewables), by = 20),
+    sec.axis = sec_axis( ~ ., 
+      name = "CO2 Emissions (million tonnes)",
+      breaks = seq(0, max(norway_combined$`Annual CO₂ emissions`/1e6), by = 10))
+  ) + scale_x_continuous(breaks = seq(1990, 2020, by = 5)
+  ) + scale_colour_manual(name = "Variables",values = c(
+      "Renewables (TWh)" = "blue",
+      "CO₂ Emissions (million tonnes)" = "red" )) +
+  labs(title = "Norway: Renewable Energy vs CO2 Emissions (1990–2020)",
+    x = "Year") + theme_minimal() +
+  theme(legend.position = "bottom",
+        plot.title = element_text(hjust = 0.5),
+plot.background = element_rect(colour = 
+                                     "black", 
+                                   fill=NA, 
+                                   linewidth = 3))
+
+```
+
+## 
+
+*Renewable energy in Norway comparison with CO2 emissions*
+
+```{r}
+# Scatterplot: Renewables vs CO2 Emissions (Norway)
+
+cor_value <- cor(
+  norway_combined$total_renewables,
+  norway_combined$`Annual CO₂ emissions` / 1e6,
+  use = "complete.obs"
+)
+
+norway_combined <- norway_combined %>%
+  mutate(interval = case_when(
+    Year >= 1990 & Year < 1995 ~ "1990–1994",
+    Year >= 1995 & Year < 2000 ~ "1995–1999",
+    Year >= 2000 & Year < 2005 ~ "2000–2004",
+    Year >= 2005 & Year < 2010 ~ "2005–2009",
+    Year >= 2010 & Year < 2015 ~ "2010–2014",
+    Year >= 2015 & Year <= 2020 ~ "2015–2020"
+  ))
+
+# Remove missing values to avoid warnings
+plot_data <- norway_combined %>%
+  filter(!is.na(total_renewables),
+         !is.na(`Annual CO₂ emissions`),
+         !is.na(interval))
+
+ggplot(plot_data,
+       aes(x = total_renewables,
+           y = `Annual CO₂ emissions` / 1e6,
+           colour = interval)) +
+  geom_point(size = 2.8, alpha = 0.85) +
+  geom_smooth(method = "lm", se = FALSE, colour = "black", linewidth = 0.9) +
+  scale_colour_brewer(palette = "Dark2") +
+  labs(
+    title = "Renewables vs CO2 Emissions in Norway (1990–2020)",
+    subtitle = paste0(
+      "correlation r ≈ ",
+      round(cor_value, 2)
+    ),
+    x = "Renewable electricity (TWh)",
+    y = "CO2 emissions (million tonnes)",
+    colour = "5-year range"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5),
+        plot.background = element_rect(colour = 
+                                     "black", 
+                                   fill=NA, 
+                                   linewidth = 3))
+
+
+```
+
+```{r}
+#### Interpretation of the chart
+
+#-   1990–1994: Renewables were at the lower end (110–120 TWh), but emissions varied widely (33–41 Mt).
+#-   1995–1999: Renewables rose slightly, but emissions continued fluctuating without a clear trend.
+#-   2000–2004: Renewables increased further while emissions stayed around 41–45 Mt.
+#-   2005–2009: Renewables continued increasing, but emissions still did not consistently decline.
+#-   2010–2014: Some of the highest renewable outputs (135–150 TWh), but no sustained drop in emissions.
+#-   2015–2020: Renewables reached their highest levels (145–155 TWh), yet emissions remained broadly stable.
+#-   Overall: Emissions remain clustered around 40–45 Mt regardless of renewable output.
+```
+
+## 
+
+### Conclusions
+
+Despite Norway being a leader in hydro power generation they are not an overall leader in renewable electricity generation. We can see on the third slide that the bar chart shows Norway placing third with Germany topping the chart.
+
+Through a linear model and scatter plot visualisations it can be concluded that renewable electricity generation cannot wholly be attributed to the decrease in carbon emissions. This is supported by the p value being at 0.27 far above the significance level of 0.05.
