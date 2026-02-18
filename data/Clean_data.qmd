@@ -1,0 +1,151 @@
+---
+title: "Clean_data"
+format: html
+editor: visual
+---
+
+```{r}
+library(tidyverse)
+library(scales)
+library(here)
+library(tidytext)
+library(wordcloud2)
+
+```
+
+```{r}
+co2_raw <- read_csv("Data/raw/annual-co2-emissions-per-country.csv")
+renewables_raw <- read_csv(here("Data", "raw", "modern-renewable-energy-consumption.csv"))
+```
+
+#Initial Inspections
+
+```{r}
+#co2_raw
+glimpse(co2_raw)
+summary(co2_raw)
+head(co2_raw)
+str(co2_raw)
+```
+
+```{r}
+#renewables_raw
+glimpse(renewables_raw)
+summary(renewables_raw)
+head(renewables_raw)
+str(renewables_raw)
+```
+
+#Initital thoughts The initial inspections of renewables_raw tells us that this is a very large data frame 6405 rows by 7 columns. It contains a list of all the countries in the world and the amount of terawatt-hours (TWh) each renewable energy source (Solar, Wind, Hydro and other renewables) produces. there is is a mix of character and numeric vector types for example "Entity" is character, "Year" is numeric and solar "generation" is numeric. It is clear from the initial inspections that we will not need a lot of this data, for example, we will be focusing on Norway as our assigned country and will compare Norway to other European countries which means our first steps such be to remove all the countries outside of Europe.
+
+#Initial thoughts- complete for co2_raw
+
+#Cleaning the data
+
+```{r}
+#Cleaned data for renewables
+renewables_processed <- renewables_raw %>% 
+  filter(Entity %in% c("Albania", 
+                       "Armenia",
+                       "Austria",
+                       "Azerbaijan",
+                       "Belarus",
+                       "Belgium",
+                        "Bosnia and Herzegovina",
+                       "Bulgaria",
+                       "Croatia",
+                       "Cyprus",
+                       "Czechia",
+                       "Denmark",
+                       "Estonia",
+                       "Finland",
+                       "France",
+                       "Germany",
+                       "Greece",
+                       "Hungary",
+                       "Iceland",
+                       "Ireland",
+                       "Italy",
+                       "Latvia",
+                       "Lithuania",
+                       "Luxembourg",
+                       "Netherlands",
+                       "North Macedonia",
+                       "Norway",
+                        "Poland",
+                       "Portugal",
+                       "Romania",
+                       "Slovakia",
+                       "Slovenia",
+                        "Spain",
+                       "Sweden",
+                       "Switzerland",
+                       "United Kingdom", 
+                       "Europe")) %>%
+  filter(Year >= 1990) %>% 
+  select(-Code) %>% 
+  rename(Location = Entity, 
+         Other = 'Other renewables (including geothermal and biomass) electricity generation - TWh',
+         Solar_TWh = `Solar generation - TWh`,
+         Wind_TWh = `Wind generation - TWh`,
+         Hydro_TWH = `Hydro generation - TWh`) %>% 
+  drop_na() %>% group_by(Location, Year) %>%  
+  mutate(total_renewables = 
+           rowSums(across(c(Hydro_TWH,
+                            Solar_TWh,
+                            Wind_TWh,
+                            Other))))
+
+```
+
+```{r}
+#Cleaning data for the co2 emmisions
+
+co2_processed <- co2_raw |>
+  filter(Entity %in% c(
+                       "Albania", 
+                       "Armenia",
+                       "Austria",
+                       "Azerbaijan",
+                       "Belarus",
+                       "Belgium",
+                        "Bosnia and Herzegovina",
+                       "Bulgaria",
+                       "Croatia",
+                       "Cyprus",
+                       "Czechia",
+                       "Denmark",
+                       "Estonia",
+                       "Finland",
+                       "France",
+                       "Germany",
+                       "Greece",
+                       "Hungary",
+                       "Iceland",
+                       "Ireland",
+                       "Italy",
+                       "Latvia",
+                       "Lithuania",
+                       "Luxembourg",
+                       "Netherlands",
+                       "North Macedonia",
+                       "Norway",
+                        "Poland",
+                       "Portugal",
+                       "Romania",
+                       "Slovakia",
+                       "Slovenia",
+                        "Spain",
+                       "Sweden",
+                       "Switzerland",
+                       "United Kingdom", 
+                       "Europe"
+                       )) |>
+  filter(Year >= 1990) |>
+  select(-Code) |> 
+    rename(Location = Entity) |>
+  drop_na()
+```
+
+
+
